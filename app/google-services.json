@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "571579354067",
+    "firebase_url": "https://to-do-lists-115e6-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "to-do-lists-115e6",
+    "storage_bucket": "to-do-lists-115e6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:571579354067:android:a1dcd403d4403b2c1b7d26",
+        "android_client_info": {
+          "package_name": "com.example.to_do_list"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "571579354067-9cesecvp1gbp75nhv3osld3lfhss2c9n.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.to_do_list",
+            "certificate_hash": "113e4e9c21e01b3ab35340a085269ccc9483a93d"
+          }
+        },
+        {
+          "client_id": "571579354067-449f60f0u10kjup6rk1580acasa6g3m3.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBHvpm31JsE5Ulhc0rQSx6mg-nLQbHFWyU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "571579354067-449f60f0u10kjup6rk1580acasa6g3m3.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
