@@ -13,6 +13,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -59,8 +60,10 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import android.net.Uri
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.generationConfig
+import com.google.firebase.Firebase
+import com.google.firebase.ai.ai
+import com.google.firebase.ai.type.GenerativeBackend
+import com.google.firebase.ai.type.generationConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -93,7 +96,7 @@ class MainActivity : ComponentActivity() {
 
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = Color(0xFFF0F4F8)
+                    color = Color.Transparent
                 ) {
                     MainScreen()
                 }
@@ -151,15 +154,15 @@ fun openGoogleMapsNavigation(context: Context, latLng: String) {
 @RequiresApi(Build.VERSION_CODES.O)
 suspend fun parseTaskWithAI(userInput: String): TaskDataAI? = withContext(Dispatchers.IO) {
     try {
-        val config = generationConfig {
-            responseMimeType = "application/json"
-        }
-
-        val generativeModel = GenerativeModel(
-            modelName = "gemini-2.5-flash",
-            apiKey = "AQ.Ab8RN6JP7Xu7tYLYczvRgozGltXnPJZA_FA5ULReTVHOQf4jBw",
-            generationConfig = config
-        )
+        // Gọi Gemini qua Firebase AI Logic: KHÔNG cần API key trong app.
+        // Key do Firebase quản lý ở phía máy chủ, app được bảo vệ bằng Firebase App Check.
+        val generativeModel = Firebase.ai(backend = GenerativeBackend.googleAI())
+            .generativeModel(
+                modelName = "gemini-2.5-flash",
+                generationConfig = generationConfig {
+                    responseMimeType = "application/json"
+                }
+            )
 
         val todayStr = LocalDate.now().toString()
 
@@ -327,455 +330,478 @@ fun MainScreen() {
 
     val hasCompletedTasks = filteredTasks.any { it.completed }
 
-    Scaffold(
-        containerColor = Color.Transparent,
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    editingTask = null
-                    taskTitle = ""
-                    taskDateStr = selectedDate.toString()
-                    taskTimeStr = currentTimeString
-                    isTimeEnabled = false
-                    isImportant = false
-                    taskLocationName = ""
-                    taskLocationLatLng = ""
-                    showBottomSheet = true
-                },
-                containerColor = themeColor,
-                contentColor = Color.White,
-                shape = CircleShape
-            ) { Icon(Icons.Default.Add, contentDescription = "Thêm công việc") }
-        }
-    ) { paddingValues ->
-        Column(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
-            Column(
-                modifier = Modifier
-                    .padding(16.dp)
-                    .animateContentSize()
-                    .pointerInput(Unit) {
-                        detectVerticalDragGestures(
-                            onDragStart = { totalDrag = 0f },
-                            onVerticalDrag = { change, dragAmount ->
-                                change.consume()
-                                totalDrag += dragAmount
-                                if (totalDrag > 50) isExpanded = true
-                                else if (totalDrag < -50) isExpanded = false
-                            }
-                        )
-                    }
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = {
-                            if (isExpanded) {
-                                currentMonthYear = currentMonthYear.minusMonths(1)
-                            } else {
-                                selectedDate = selectedDate.minusDays(7)
-                                currentMonthYear = YearMonth.from(selectedDate)
-                            }
-                        }) {
-                            Icon(Icons.Default.KeyboardArrowLeft, null, tint = themeColor)
-                        }
-                        Text(
-                            text = "Tháng ${currentMonthYear.monthValue} / ${currentMonthYear.year}",
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF333333)
-                        )
-                        IconButton(onClick = {
-                            if (isExpanded) {
-                                currentMonthYear = currentMonthYear.plusMonths(1)
-                            } else {
-                                selectedDate = selectedDate.plusDays(7)
-                                currentMonthYear = YearMonth.from(selectedDate)
-                            }
-                        }) {
-                            Icon(Icons.Default.KeyboardArrowRight, null, tint = themeColor)
-                        }
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(themeColor)
-                            .clickable {
-                                context.startActivity(Intent(context, PersonalActivity::class.java))
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (!avatarUri.isNullOrEmpty()) {
-                            AsyncImage(
-                                model = avatarUri,
-                                contentDescription = null,
-                                modifier = Modifier.fillMaxSize().clip(CircleShape),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            Icon(Icons.Default.Person, null, tint = Color.White, modifier = Modifier.size(22.dp))
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    listOf("T2", "T3", "T4", "T5", "T6", "T7", "CN").forEach { day ->
-                        Text(
-                            text = day,
-                            modifier = Modifier.width(40.dp),
-                            textAlign = TextAlign.Center,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.Gray,
-                            fontSize = 14.sp
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (isExpanded) {
-                    val firstDayOfMonth = currentMonthYear.atDay(1)
-                    val gridStartDate = firstDayOfMonth.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-                    val datesList = List(42) { index -> gridStartDate.plusDays(index.toLong()) }
-
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(7),
-                        modifier = Modifier.height(240.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(datesList) { date ->
-                            val isCurrentMonth = YearMonth.from(date) == currentMonthYear
-                            DayCell(date = date, selectedDate = selectedDate, isCurrentMonth = isCurrentMonth, themeColor = themeColor) {
-                                selectedDate = date
-                                currentMonthYear = YearMonth.from(date)
-                            }
-                        }
-                    }
-                } else {
-                    var horizontalDragAmount by remember { mutableStateOf(0f) }
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .pointerInput(Unit) {
-                                detectHorizontalDragGestures(
-                                    onDragStart = { horizontalDragAmount = 0f },
-                                    onHorizontalDrag = { change, dragAmount ->
-                                        change.consume()
-                                        horizontalDragAmount += dragAmount
-                                    },
-                                    onDragEnd = {
-                                        if (horizontalDragAmount < -50) {
-                                            selectedDate = selectedDate.plusDays(7)
-                                            currentMonthYear = YearMonth.from(selectedDate)
-                                        } else if (horizontalDragAmount > 50) {
-                                            selectedDate = selectedDate.minusDays(7)
-                                            currentMonthYear = YearMonth.from(selectedDate)
-                                        }
-                                    }
-                                )
-                            },
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        val baseDate = if (YearMonth.from(selectedDate) == currentMonthYear) selectedDate else currentMonthYear.atDay(1)
-                        val firstDayOfWeek = baseDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-                        val weekDates = (0..6).map { firstDayOfWeek.plusDays(it.toLong()) }
-
-                        weekDates.forEach { date ->
-                            val isCurrentMonth = YearMonth.from(date) == currentMonthYear
-                            DayCell(date = date, selectedDate = selectedDate, isCurrentMonth = isCurrentMonth, themeColor = themeColor) {
-                                selectedDate = date
-                                currentMonthYear = YearMonth.from(date)
-                            }
-                        }
-                    }
-                }
+    // ===== Glassmorphism 2.0: nền aurora bọc toàn bộ màn hình =====
+    GlassBackground(themeColor = themeColor) {
+        Scaffold(
+            containerColor = Color.Transparent,
+            floatingActionButton = {
+                FloatingActionButton(
+                    onClick = {
+                        editingTask = null
+                        taskTitle = ""
+                        taskDateStr = selectedDate.toString()
+                        taskTimeStr = currentTimeString
+                        isTimeEnabled = false
+                        isImportant = false
+                        taskLocationName = ""
+                        taskLocationLatLng = ""
+                        showBottomSheet = true
+                    },
+                    containerColor = themeColor.copy(alpha = 0.9f),
+                    contentColor = Color.White,
+                    shape = CircleShape,
+                    modifier = Modifier.border(1.5.dp, Color.White.copy(alpha = 0.8f), CircleShape)
+                ) { Icon(Icons.Default.Add, contentDescription = "Thêm công việc") }
             }
-
-            HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp, modifier = Modifier.padding(horizontal = 16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(text = "Danh sách công việc", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF333333))
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { showDeleteDialog = true }, enabled = hasCompletedTasks) {
-                        Icon(imageVector = Icons.Default.Delete, contentDescription = "Xóa hoàn thành", tint = if (hasCompletedTasks) themeColor else Color.LightGray)
-                    }
-
-                    Box {
-                        IconButton(onClick = { menuExpanded = true }) {
-                            Icon(Icons.Default.List, "Lọc", tint = if (currentFilter != FilterOption.ALL) themeColor else Color.Gray)
-                        }
-                        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                            DropdownMenuItem(text = { Text("Tất cả công việc") }, onClick = { currentFilter = FilterOption.ALL; menuExpanded = false }, leadingIcon = { Icon(Icons.Default.Check, null) })
-                            DropdownMenuItem(text = { Text("Lọc mức độ quan trọng") }, onClick = { currentFilter = FilterOption.IMPORTANT; menuExpanded = false }, leadingIcon = { Icon(Icons.Default.Star, null, tint = Color(0xFFFFB300)) })
-                            DropdownMenuItem(text = { Text("Lọc chữ cái (A-Z)") }, onClick = { currentFilter = FilterOption.ALPHABET; menuExpanded = false }, leadingIcon = { Icon(Icons.Default.SortByAlpha, null) })
-                        }
-                    }
-                }
-            }
-
-            if (filteredTasks.isEmpty()) {
-                Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                    Text("Không có công việc nào", color = Color.Gray, fontSize = 14.sp)
-                }
-            } else {
-                LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 80.dp)) {
-                    items(filteredTasks) { task ->
-                        TaskItemRow(
-                            task = task,
-                            themeColor = themeColor,
-                            onCheckedChange = { isChecked -> firebaseDb.child(task.id).child("completed").setValue(isChecked) },
-                            onEditClick = { editingTask = task; showBottomSheet = true }
-                        )
-                    }
-                }
-            }
-        }
-
-        if (showBottomSheet) {
-            ModalBottomSheet(
-                onDismissRequest = { showBottomSheet = false },
-                containerColor = Color.White,
-                dragHandle = null
-            ) {
-                val datePickerDialog = DatePickerDialog(
-                    context,
-                    { _, y, m, d -> taskDateStr = LocalDate.of(y, m + 1, d).toString() },
-                    LocalDate.parse(taskDateStr).year,
-                    LocalDate.parse(taskDateStr).monthValue - 1,
-                    LocalDate.parse(taskDateStr).dayOfMonth
-                ).apply {
-                    setOnShowListener {
-                        getButton(DatePickerDialog.BUTTON_POSITIVE)?.setTextColor(themeColor.toArgb())
-                        getButton(DatePickerDialog.BUTTON_NEGATIVE)?.setTextColor(themeColor.toArgb())
-                    }
-                }
-
-                val currentHour = calendar.get(Calendar.HOUR_OF_DAY)
-                val currentMinute = calendar.get(Calendar.MINUTE)
-                val timePickerDialog = TimePickerDialog(
-                    context, { _, h, min -> taskTimeStr = String.format("%02d:%02d", h, min) },
-                    currentHour, currentMinute, true
-                ).apply {
-                    setOnShowListener {
-                        try {
-                            val id = context.resources.getIdentifier("toggle_mode", "id", "android")
-                            findViewById<android.view.View>(id)?.performClick()
-                            getButton(TimePickerDialog.BUTTON_POSITIVE)?.setTextColor(themeColor.toArgb())
-                            getButton(TimePickerDialog.BUTTON_NEGATIVE)?.setTextColor(themeColor.toArgb())
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-                    }
-                }
-
+        ) { paddingValues ->
+            Column(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
+                // ===== Khối lịch dạng kính =====
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFFF8FAFC))
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.Start,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = { datePickerDialog.show() },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.DateRange,
-                                contentDescription = "Chọn ngày",
-                                tint = themeColor
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .animateContentSize()
+                        .glass(RoundedCornerShape(28.dp))
+                        .padding(16.dp)
+                        .pointerInput(Unit) {
+                            detectVerticalDragGestures(
+                                onDragStart = { totalDrag = 0f },
+                                onVerticalDrag = { change, dragAmount ->
+                                    change.consume()
+                                    totalDrag += dragAmount
+                                    if (totalDrag > 50) isExpanded = true
+                                    else if (totalDrag < -50) isExpanded = false
+                                }
                             )
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        Text(
-                            text = "$taskDateStr",
-                            fontSize = 14.sp,
-                            color = Color(0xFF475569),
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 0.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        TextField(
-                            value = taskTitle,
-                            onValueChange = { taskTitle = it },
-                            placeholder = { Text("Bạn định làm gì?", color = Color.Gray) },
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                focusedTextColor = Color.Black,
-                                unfocusedTextColor = Color.Black
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        OutlinedTextField(
-                            value = taskLocationName,
-                            onValueChange = { taskLocationName = it },
-                            label = { Text("Địa điểm (Tùy chọn)") },
-                            placeholder = { Text("") },
-                            leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = themeColor) },
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                            shape = RoundedCornerShape(24.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = themeColor,
-                                focusedLabelColor = themeColor
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = {
+                                if (isExpanded) {
+                                    currentMonthYear = currentMonthYear.minusMonths(1)
+                                } else {
+                                    selectedDate = selectedDate.minusDays(7)
+                                    currentMonthYear = YearMonth.from(selectedDate)
+                                }
+                            }) {
+                                Icon(Icons.Default.KeyboardArrowLeft, null, tint = themeColor)
+                            }
+                            Text(
+                                text = "Tháng ${currentMonthYear.monthValue} / ${currentMonthYear.year}",
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = GlassTextPrimary
                             )
-                        )
+                            IconButton(onClick = {
+                                if (isExpanded) {
+                                    currentMonthYear = currentMonthYear.plusMonths(1)
+                                } else {
+                                    selectedDate = selectedDate.plusDays(7)
+                                    currentMonthYear = YearMonth.from(selectedDate)
+                                }
+                            }) {
+                                Icon(Icons.Default.KeyboardArrowRight, null, tint = themeColor)
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(themeColor)
+                                .border(1.5.dp, Color.White.copy(alpha = 0.9f), CircleShape)
+                                .clickable {
+                                    context.startActivity(Intent(context, PersonalActivity::class.java))
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (!avatarUri.isNullOrEmpty()) {
+                                AsyncImage(
+                                    model = avatarUri,
+                                    contentDescription = null,
+                                    modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Icon(Icons.Default.Person, null, tint = Color.White, modifier = Modifier.size(22.dp))
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        listOf("T2", "T3", "T4", "T5", "T6", "T7", "CN").forEach { day ->
+                            Text(
+                                text = day,
+                                modifier = Modifier.width(40.dp),
+                                textAlign = TextAlign.Center,
+                                fontWeight = FontWeight.SemiBold,
+                                color = GlassTextSecondary,
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    if (isExpanded) {
+                        val firstDayOfMonth = currentMonthYear.atDay(1)
+                        val gridStartDate = firstDayOfMonth.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                        val datesList = List(42) { index -> gridStartDate.plusDays(index.toLong()) }
+
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(7),
+                            modifier = Modifier.height(240.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(datesList) { date ->
+                                val isCurrentMonth = YearMonth.from(date) == currentMonthYear
+                                DayCell(date = date, selectedDate = selectedDate, isCurrentMonth = isCurrentMonth, themeColor = themeColor) {
+                                    selectedDate = date
+                                    currentMonthYear = YearMonth.from(date)
+                                }
+                            }
+                        }
+                    } else {
+                        var horizontalDragAmount by remember { mutableStateOf(0f) }
 
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 12.dp, bottom = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(text = "Hẹn giờ", fontSize = 14.sp, color = Color.DarkGray)
-                            Spacer(Modifier.width(8.dp))
-
-                            Switch(
-                                checked = isTimeEnabled,
-                                onCheckedChange = { isTimeEnabled = it },
-                                colors = SwitchDefaults.colors(checkedTrackColor = themeColor)
-                            )
-
-                            if (isTimeEnabled) {
-                                IconButton(onClick = { timePickerDialog.show() }) {
-                                    Icon(Icons.Default.AccessTime, contentDescription = null, tint = themeColor)
-                                }
-                            }
-
-                            Spacer(Modifier.weight(1f))
-
-                            IconButton(
-                                onClick = { isImportant = !isImportant },
-                                modifier = Modifier.padding(end = 8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (isImportant) Icons.Filled.Star else Icons.Outlined.StarBorder,
-                                    contentDescription = null,
-                                    tint = if (isImportant) Color(0xFFFFB300) else Color.Gray
-                                )
-                            }
-
-                            if (isAiLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.padding(end = 12.dp).size(24.dp),
-                                    strokeWidth = 2.5.dp,
-                                    color = themeColor
-                                )
-                            } else {
-                                IconButton(
-                                    onClick = {
-                                        val speechIntent = Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                            putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                            putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "vi-VN")
-                                            putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Hãy nói công việc bạn muốn thêm...")
+                                .pointerInput(Unit) {
+                                    detectHorizontalDragGestures(
+                                        onDragStart = { horizontalDragAmount = 0f },
+                                        onHorizontalDrag = { change, dragAmount ->
+                                            change.consume()
+                                            horizontalDragAmount += dragAmount
+                                        },
+                                        onDragEnd = {
+                                            if (horizontalDragAmount < -50) {
+                                                selectedDate = selectedDate.plusDays(7)
+                                                currentMonthYear = YearMonth.from(selectedDate)
+                                            } else if (horizontalDragAmount > 50) {
+                                                selectedDate = selectedDate.minusDays(7)
+                                                currentMonthYear = YearMonth.from(selectedDate)
+                                            }
                                         }
-                                        try {
-                                            isListening = true
-                                            speechRecognizerLauncher.launch(speechIntent)
-                                        } catch (e: Exception) {
-                                            isListening = false
-                                            Toast.makeText(context, "Thiết bị không hỗ trợ nhận diện giọng nói", Toast.LENGTH_SHORT).show()
-                                        }
-                                    },
-                                    modifier = Modifier.padding(end = 4.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Mic,
-                                        contentDescription = "Trợ lý giọng nói AI",
-                                        tint = if (isListening) Color.Red else themeColor,
-                                        modifier = Modifier.size(28.dp)
                                     )
+                                },
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            val baseDate = if (YearMonth.from(selectedDate) == currentMonthYear) selectedDate else currentMonthYear.atDay(1)
+                            val firstDayOfWeek = baseDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                            val weekDates = (0..6).map { firstDayOfWeek.plusDays(it.toLong()) }
+
+                            weekDates.forEach { date ->
+                                val isCurrentMonth = YearMonth.from(date) == currentMonthYear
+                                DayCell(date = date, selectedDate = selectedDate, isCurrentMonth = isCurrentMonth, themeColor = themeColor) {
+                                    selectedDate = date
+                                    currentMonthYear = YearMonth.from(date)
                                 }
                             }
+                        }
+                    }
+                }
 
-                            Button(
-                                onClick = {
-                                    val finalTime = if (isTimeEnabled) taskTimeStr else "Không hẹn giờ"
-                                    if (taskTitle.trim().isEmpty()) return@Button
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "Danh sách công việc", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = GlassTextPrimary)
 
-                                    if (editingTask != null) {
-                                        val updatedTask = editingTask!!.copy(
-                                            title = taskTitle, date = taskDateStr, time = finalTime,
-                                            important = isImportant, locationName = taskLocationName, locationLatLng = taskLocationLatLng
-                                        )
-                                        firebaseDb.child(editingTask!!.id).setValue(updatedTask).addOnSuccessListener {
-                                            if (isTimeEnabled) scheduleTaskReminder(context, updatedTask)
-                                            showBottomSheet = false
-                                            editingTask = null
-                                        }
-                                    } else {
-                                        val newKey = firebaseDb.push().key ?: UUID.randomUUID().toString()
-                                        val newTask = Task(
-                                            id = newKey, title = taskTitle, date = taskDateStr,
-                                            time = finalTime, completed = false, important = isImportant,
-                                            userId = currentUid, locationName = taskLocationName, locationLatLng = taskLocationLatLng
-                                        )
-                                        firebaseDb.child(newKey).setValue(newTask).addOnSuccessListener {
-                                            if (isTimeEnabled) scheduleTaskReminder(context, newTask)
-                                            showBottomSheet = false
-                                        }
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = themeColor)
-                            ) { Text("Lưu") }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { showDeleteDialog = true }, enabled = hasCompletedTasks) {
+                            Icon(imageVector = Icons.Default.Delete, contentDescription = "Xóa hoàn thành", tint = if (hasCompletedTasks) themeColor else Color.LightGray)
+                        }
+
+                        Box {
+                            IconButton(onClick = { menuExpanded = true }) {
+                                Icon(Icons.Default.List, "Lọc", tint = if (currentFilter != FilterOption.ALL) themeColor else GlassTextSecondary)
+                            }
+                            DropdownMenu(
+                                expanded = menuExpanded,
+                                onDismissRequest = { menuExpanded = false },
+                                containerColor = Color.White.copy(alpha = 0.92f),
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                DropdownMenuItem(text = { Text("Tất cả công việc") }, onClick = { currentFilter = FilterOption.ALL; menuExpanded = false }, leadingIcon = { Icon(Icons.Default.Check, null) })
+                                DropdownMenuItem(text = { Text("Lọc mức độ quan trọng") }, onClick = { currentFilter = FilterOption.IMPORTANT; menuExpanded = false }, leadingIcon = { Icon(Icons.Default.Star, null, tint = Color(0xFFFFB300)) })
+                                DropdownMenuItem(text = { Text("Lọc chữ cái (A-Z)") }, onClick = { currentFilter = FilterOption.ALPHABET; menuExpanded = false }, leadingIcon = { Icon(Icons.Default.SortByAlpha, null) })
+                            }
+                        }
+                    }
+                }
+
+                if (filteredTasks.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                        Text("Không có công việc nào", color = GlassTextSecondary, fontSize = 14.sp)
+                    }
+                } else {
+                    LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 80.dp)) {
+                        items(filteredTasks) { task ->
+                            TaskItemRow(
+                                task = task,
+                                themeColor = themeColor,
+                                onCheckedChange = { isChecked -> firebaseDb.child(task.id).child("completed").setValue(isChecked) },
+                                onEditClick = { editingTask = task; showBottomSheet = true }
+                            )
                         }
                     }
                 }
             }
-        }
 
-        if (showDeleteDialog) {
-            AlertDialog(
-                onDismissRequest = { showDeleteDialog = false },
-                title = { Text(text = "Xác nhận xóa", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
-                text = { Text(text = "Bạn có chắc chắn muốn dọn dẹp các công việc đã hoàn thành không?") },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            filteredTasks.filter { it.completed }.forEach { firebaseDb.child(it.id).removeValue() }
-                            Toast.makeText(context, "Đã dọn dẹp công việc!", Toast.LENGTH_SHORT).show()
-                            showDeleteDialog = false
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = themeColor)
-                    ) { Text("Xóa", color = Color.White, fontWeight = FontWeight.Bold) }
-                },
-                dismissButton = {
-                    OutlinedButton(
-                        onClick = { showDeleteDialog = false },
-                        colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White),
-                        border = BorderStroke(1.dp, Color.LightGray)
-                    ) { Text("Hủy", color = Color.Black) }
-                },
-                containerColor = Color.White,
-                shape = RoundedCornerShape(16.dp)
-            )
+            if (showBottomSheet) {
+                ModalBottomSheet(
+                    onDismissRequest = { showBottomSheet = false },
+                    containerColor = Color.White.copy(alpha = 0.6f),
+                    shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+                    dragHandle = null
+                ) {
+                    val datePickerDialog = DatePickerDialog(
+                        context,
+                        { _, y, m, d -> taskDateStr = LocalDate.of(y, m + 1, d).toString() },
+                        LocalDate.parse(taskDateStr).year,
+                        LocalDate.parse(taskDateStr).monthValue - 1,
+                        LocalDate.parse(taskDateStr).dayOfMonth
+                    ).apply {
+                        setOnShowListener {
+                            getButton(DatePickerDialog.BUTTON_POSITIVE)?.setTextColor(themeColor.toArgb())
+                            getButton(DatePickerDialog.BUTTON_NEGATIVE)?.setTextColor(themeColor.toArgb())
+                        }
+                    }
+
+                    val currentHour = calendar.get(Calendar.HOUR_OF_DAY)
+                    val currentMinute = calendar.get(Calendar.MINUTE)
+                    val timePickerDialog = TimePickerDialog(
+                        context, { _, h, min -> taskTimeStr = String.format("%02d:%02d", h, min) },
+                        currentHour, currentMinute, true
+                    ).apply {
+                        setOnShowListener {
+                            try {
+                                val id = context.resources.getIdentifier("toggle_mode", "id", "android")
+                                findViewById<android.view.View>(id)?.performClick()
+                                getButton(TimePickerDialog.BUTTON_POSITIVE)?.setTextColor(themeColor.toArgb())
+                                getButton(TimePickerDialog.BUTTON_NEGATIVE)?.setTextColor(themeColor.toArgb())
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        }
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color.White.copy(alpha = 0.4f))
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.Start,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(
+                                onClick = { datePickerDialog.show() },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DateRange,
+                                    contentDescription = "Chọn ngày",
+                                    tint = themeColor
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            Text(
+                                text = "$taskDateStr",
+                                fontSize = 14.sp,
+                                color = GlassTextPrimary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 0.dp)
+                        ) {
+                            TextField(
+                                value = taskTitle,
+                                onValueChange = { taskTitle = it },
+                                placeholder = { Text("Bạn định làm gì?", color = GlassTextSecondary) },
+                                shape = RoundedCornerShape(20.dp),
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.White.copy(alpha = 0.5f),
+                                    unfocusedContainerColor = Color.White.copy(alpha = 0.35f),
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent,
+                                    focusedTextColor = GlassTextPrimary,
+                                    unfocusedTextColor = GlassTextPrimary
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            OutlinedTextField(
+                                value = taskLocationName,
+                                onValueChange = { taskLocationName = it },
+                                label = { Text("Địa điểm (Tùy chọn)") },
+                                placeholder = { Text("") },
+                                leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = themeColor) },
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                shape = RoundedCornerShape(24.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = themeColor,
+                                    focusedLabelColor = themeColor,
+                                    unfocusedBorderColor = Color.White.copy(alpha = 0.9f),
+                                    focusedContainerColor = Color.White.copy(alpha = 0.5f),
+                                    unfocusedContainerColor = Color.White.copy(alpha = 0.35f),
+                                    focusedTextColor = GlassTextPrimary,
+                                    unfocusedTextColor = GlassTextPrimary
+                                )
+                            )
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 12.dp, bottom = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(text = "Hẹn giờ", fontSize = 14.sp, color = GlassTextPrimary)
+                                Spacer(Modifier.width(8.dp))
+
+                                Switch(
+                                    checked = isTimeEnabled,
+                                    onCheckedChange = { isTimeEnabled = it },
+                                    colors = SwitchDefaults.colors(checkedTrackColor = themeColor)
+                                )
+
+                                if (isTimeEnabled) {
+                                    IconButton(onClick = { timePickerDialog.show() }) {
+                                        Icon(Icons.Default.AccessTime, contentDescription = null, tint = themeColor)
+                                    }
+                                }
+
+                                Spacer(Modifier.weight(1f))
+
+                                IconButton(
+                                    onClick = { isImportant = !isImportant },
+                                    modifier = Modifier.padding(end = 8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isImportant) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                                        contentDescription = null,
+                                        tint = if (isImportant) Color(0xFFFFB300) else GlassTextSecondary
+                                    )
+                                }
+
+                                if (isAiLoading) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.padding(end = 12.dp).size(24.dp),
+                                        strokeWidth = 2.5.dp,
+                                        color = themeColor
+                                    )
+                                } else {
+                                    IconButton(
+                                        onClick = {
+                                            val speechIntent = Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                                putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                                putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "vi-VN")
+                                                putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Hãy nói công việc bạn muốn thêm...")
+                                            }
+                                            try {
+                                                isListening = true
+                                                speechRecognizerLauncher.launch(speechIntent)
+                                            } catch (e: Exception) {
+                                                isListening = false
+                                                Toast.makeText(context, "Thiết bị không hỗ trợ nhận diện giọng nói", Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
+                                        modifier = Modifier.padding(end = 4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Mic,
+                                            contentDescription = "Trợ lý giọng nói AI",
+                                            tint = if (isListening) Color.Red else themeColor,
+                                            modifier = Modifier.size(28.dp)
+                                        )
+                                    }
+                                }
+
+                                Button(
+                                    onClick = {
+                                        val finalTime = if (isTimeEnabled) taskTimeStr else "Không hẹn giờ"
+                                        if (taskTitle.trim().isEmpty()) return@Button
+
+                                        if (editingTask != null) {
+                                            val updatedTask = editingTask!!.copy(
+                                                title = taskTitle, date = taskDateStr, time = finalTime,
+                                                important = isImportant, locationName = taskLocationName, locationLatLng = taskLocationLatLng
+                                            )
+                                            firebaseDb.child(editingTask!!.id).setValue(updatedTask).addOnSuccessListener {
+                                                if (isTimeEnabled) scheduleTaskReminder(context, updatedTask)
+                                                showBottomSheet = false
+                                                editingTask = null
+                                            }
+                                        } else {
+                                            val newKey = firebaseDb.push().key ?: UUID.randomUUID().toString()
+                                            val newTask = Task(
+                                                id = newKey, title = taskTitle, date = taskDateStr,
+                                                time = finalTime, completed = false, important = isImportant,
+                                                userId = currentUid, locationName = taskLocationName, locationLatLng = taskLocationLatLng
+                                            )
+                                            firebaseDb.child(newKey).setValue(newTask).addOnSuccessListener {
+                                                if (isTimeEnabled) scheduleTaskReminder(context, newTask)
+                                                showBottomSheet = false
+                                            }
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = themeColor)
+                                ) { Text("Lưu") }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (showDeleteDialog) {
+                AlertDialog(
+                    onDismissRequest = { showDeleteDialog = false },
+                    title = { Text(text = "Xác nhận xóa", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = GlassTextPrimary) },
+                    text = { Text(text = "Bạn có chắc chắn muốn dọn dẹp các công việc đã hoàn thành không?", color = GlassTextPrimary) },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                filteredTasks.filter { it.completed }.forEach { firebaseDb.child(it.id).removeValue() }
+                                Toast.makeText(context, "Đã dọn dẹp công việc!", Toast.LENGTH_SHORT).show()
+                                showDeleteDialog = false
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = themeColor)
+                        ) { Text("Xóa", color = Color.White, fontWeight = FontWeight.Bold) }
+                    },
+                    dismissButton = {
+                        OutlinedButton(
+                            onClick = { showDeleteDialog = false },
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White.copy(alpha = 0.6f)),
+                            border = BorderStroke(1.dp, Color.White)
+                        ) { Text("Hủy", color = GlassTextPrimary) }
+                    },
+                    containerColor = Color.White.copy(alpha = 0.88f),
+                    shape = RoundedCornerShape(24.dp)
+                )
+            }
         }
-    }
+    } // end GlassBackground
 }
 
 @Composable
@@ -786,61 +812,63 @@ fun TaskItemRow(
     onEditClick: () -> Unit
 ) {
     val context = LocalContext.current
-    val backgroundColor = when {
-        task.completed -> Color(0xFFF5F5F5)
-        task.important -> themeColor.copy(alpha = 0.15f)
-        else -> Color.White
+    val cardShape = RoundedCornerShape(20.dp)
+    val glassModifier = when {
+        task.completed -> Modifier.glass(cardShape, alpha = 0.25f, elevation = 2.dp)
+        task.important -> Modifier.glassTinted(themeColor, cardShape, alpha = 0.30f)
+        else -> Modifier.glass(cardShape, alpha = 0.5f)
     }
     val titleTextColor = when {
         task.completed -> Color.Gray
-        task.important -> themeColor.copy(alpha = 0.9f)
-        else -> Color(0xFF2C3E50)
+        task.important -> themeColor.copy(alpha = 0.95f).let { Color(0xFF1E293B) }
+        else -> GlassTextPrimary
     }
     val indicatorColor = if (task.important) themeColor else themeColor.copy(alpha = 0.5f)
 
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = backgroundColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp)
+            .then(glassModifier)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(modifier = Modifier.padding(12.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = task.completed, onCheckedChange = onCheckedChange, colors = CheckboxDefaults.colors(checkedColor = themeColor))
-            Box(modifier = Modifier.width(4.dp).height(24.dp).background(indicatorColor, RoundedCornerShape(2.dp)))
-            Spacer(modifier = Modifier.width(12.dp))
+        Checkbox(checked = task.completed, onCheckedChange = onCheckedChange, colors = CheckboxDefaults.colors(checkedColor = themeColor))
+        Box(modifier = Modifier.width(4.dp).height(24.dp).background(indicatorColor, RoundedCornerShape(2.dp)))
+        Spacer(modifier = Modifier.width(12.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = task.title, fontSize = 16.sp, fontWeight = if (task.important) FontWeight.SemiBold else FontWeight.Medium, color = titleTextColor, textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = task.time, fontSize = 12.sp, color = Color.Gray)
-                    if (task.locationName.isNotEmpty()) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Row(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(themeColor.copy(alpha = 0.1f))
-                                .clickable {
-                                    val destination = if (task.locationLatLng.isNotEmpty()) task.locationLatLng else task.locationName
-                                    openGoogleMapsNavigation(context, destination)
-                                }
-                                .padding(horizontal = 6.dp, vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(imageVector = Icons.Default.LocationOn, contentDescription = null, tint = themeColor, modifier = Modifier.size(12.dp))
-                            Spacer(modifier = Modifier.width(2.dp))
-                            Text(text = task.locationName, fontSize = 11.sp, color = themeColor, maxLines = 1)
-                        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = task.title, fontSize = 16.sp, fontWeight = if (task.important) FontWeight.SemiBold else FontWeight.Medium, color = titleTextColor, textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = task.time, fontSize = 12.sp, color = GlassTextSecondary)
+                if (task.locationName.isNotEmpty()) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(themeColor.copy(alpha = 0.15f))
+                            .border(0.8.dp, Color.White.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
+                            .clickable {
+                                val destination = if (task.locationLatLng.isNotEmpty()) task.locationLatLng else task.locationName
+                                openGoogleMapsNavigation(context, destination)
+                            }
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(imageVector = Icons.Default.LocationOn, contentDescription = null, tint = themeColor, modifier = Modifier.size(12.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(text = task.locationName, fontSize = 11.sp, color = themeColor, maxLines = 1)
                     }
                 }
             }
+        }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (task.important) {
-                    Icon(imageVector = Icons.Filled.Star, contentDescription = null, tint = if (task.completed) Color.LightGray else Color(0xFFFFB300), modifier = Modifier.size(20.dp))
-                }
-                IconButton(onClick = onEditClick) {
-                    Icon(imageVector = Icons.Default.Info, contentDescription = "Chỉnh sửa", tint = themeColor)
-                }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (task.important) {
+                Icon(imageVector = Icons.Filled.Star, contentDescription = null, tint = if (task.completed) Color.LightGray else Color(0xFFFFB300), modifier = Modifier.size(20.dp))
+            }
+            IconButton(onClick = onEditClick) {
+                Icon(imageVector = Icons.Default.Info, contentDescription = "Chỉnh sửa", tint = themeColor)
             }
         }
     }
@@ -860,20 +888,20 @@ fun DayCell(
 
     val isTodayCurrent = date.dayOfMonth == systemToday.dayOfMonth && date.monthValue == systemToday.monthValue && date.year == systemToday.year
 
-    val boxBackground = if (isSelected) themeColor else if (isTodayCurrent) Color(0xFF939598) else Color.Transparent
+    val cellModifier = when {
+        isSelected -> Modifier.size(40.dp).glassTinted(themeColor, CircleShape, alpha = 0.9f)
+        isTodayCurrent -> Modifier.size(40.dp).glass(CircleShape, alpha = 0.7f, elevation = 4.dp)
+        else -> Modifier.size(40.dp).clip(CircleShape)
+    }
     val textColor = when {
         isSelected -> Color.White
-        isTodayCurrent -> Color.White
-        isCurrentMonth -> Color.Black
-        else -> Color(0xFFC4C4C4)
+        isTodayCurrent -> GlassTextPrimary
+        isCurrentMonth -> GlassTextPrimary
+        else -> GlassTextSecondary.copy(alpha = 0.4f)
     }
 
     Box(
-        modifier = Modifier
-            .size(40.dp)
-            .clip(CircleShape)
-            .background(boxBackground)
-            .clickable { onClick() },
+        modifier = cellModifier.clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Text(text = "${date.dayOfMonth}", color = textColor, fontWeight = if (isSelected || isTodayCurrent) FontWeight.Bold else if (isCurrentMonth) FontWeight.Normal else FontWeight.Light)

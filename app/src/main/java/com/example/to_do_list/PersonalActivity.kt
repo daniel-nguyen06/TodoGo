@@ -1,11 +1,9 @@
 package com.example.to_do_list
 
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -37,7 +35,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.to_do_list.ui.theme.To_do_listTheme
-import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
@@ -45,7 +42,6 @@ import com.google.firebase.database.ValueEventListener
 import java.time.LocalDate
 import java.time.temporal.ChronoField
 import java.util.*
-import kotlin.jvm.java
 
 class PersonalActivity : ComponentActivity() {
     @RequiresApi(Build.VERSION_CODES.O)
@@ -78,7 +74,7 @@ fun PersonalScreen(onBack: () -> Unit) {
     val primaryColor = Color(currentThemeColorArgb)
 
     var pinEnabled by remember { mutableStateOf(appPrefs.getBoolean("pin_notification", true)) }
-    var fullName by remember { mutableStateOf(userPrefs.getString("full_name", "Người dùng Gmail") ?: "") }
+    var fullName by remember { mutableStateOf(userPrefs.getString("full_name", "Người dùng") ?: "") }
     var userEmail by remember { mutableStateOf(userPrefs.getString("user_email", "") ?: "") }
     val currentUid = remember { userPrefs.getString("username", "") ?: "" }
     var avatarUri by remember { mutableStateOf(userPrefs.getString("user_avatar_uri", "")) }
@@ -242,12 +238,11 @@ fun PersonalScreen(onBack: () -> Unit) {
                         headlineContent = { Text("Đăng xuất", color = Color(0xFFD32F2F), fontWeight = FontWeight.Bold) },
                         leadingContent = { Icon(Icons.Default.ExitToApp, null, tint = Color(0xFFD32F2F)) },
                         modifier = Modifier.clickable {
-                            FirebaseAuth.getInstance().signOut()
-                            userPrefs.edit().putBoolean("is_logged_in", false).apply()
-
-                            val intent = Intent(context, LoginActivity::class.java)
-                            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                            context.startActivity(intent)
+                            // Xóa thông báo ghim của người dùng hiện tại
+                            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+                            nm.cancel(999)
+                            // Xóa phiên đăng nhập và quay về màn hình đăng nhập (hàm nằm trong LoginActivity.kt)
+                            logoutAndGoToLogin(context)
                         }
                     )
                 }

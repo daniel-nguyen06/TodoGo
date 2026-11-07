@@ -13,6 +13,7 @@
         </intent>
     </queries>
     <application
+        android:name=".TodoApp"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -32,6 +33,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".RegisterActivity"
+            android:exported="false"
+            android:theme="@style/Theme.To_do_list" />
+
+        <activity
+            android:name=".StartActivity"
+            android:exported="false"
+            android:theme="@style/Theme.To_do_list" />
 
         <activity
             android:name=".MainActivity"
